@@ -14,14 +14,14 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 from sklearn.metrics import mean_absolute_error
 warnings.filterwarnings("ignore")
 
-# Farklı mağazalar için 3 aylık item-level sales tahmini.
-# 5 yıllık bir veri setinde 10 farklı mağaza ve 50 farklı item var.
-# Buna göre mağaza-item kırılımında 3 ay sonrasının tahminlerini vermemiz gerekiyor.
+# 3-month item-level sales forecast for different stores.
+# There are 10 different stores and 50 different items in a 5-year dataset.
+# Accordingly, we need to give forecasts for 3 months after the store-item breakdown.
 
-# Note : İstatistiksel zaman serilerinde yaklaşımımız şu şekilde olmalı; Yöntemler var ve bu yöntemlerin model dereceleri,
-# diğer ifadesiyle hiperparametreleri var. Olası tüm hiperparametre kombinasyonlarını deneriz, en iyi versiyonlara sahip
-# olan özelliklerle modellerimizi kurarız. Olaya nedensellik bağlamında değil de yüksek tahmin başarısı bağlamında yaklaşıyoruz.
-# SARIMA modeli triple exponential smoothing methoduna benzemektedir.
+# Note : Our approach in statistical time series should be as follows; There are methods and the model degrees of these methods,
+# in other words it has hyperparameters. We try all possible combinations of hyperparameters, have the best versions
+# We build our models with # features. We approach the event in the context of high prediction success, not causality.
+# SARIMA model is similar to triple exponential smoothing method.
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 500)
@@ -179,15 +179,15 @@ df['sales'].describe([0.10, 0.30, 0.50, 0.70, 0.80, 0.90, 0.95, 0.99])
 # 99%         135.000000
 # max         231.000000
 
-# Kaç tane mağaza var ?
+# How many stores are there?
 df[["store"]].nunique()
 # store    10
 
-# Kaç tane item var ?
+# How many items are there?
 df[["item"]].nunique()
 # item    50
 
-#Her mağaza'da eşit sayıda mı eşsiz item var ?
+# Is there an equal number of unique items in each store?
 df.groupby(["store"])["item"].nunique()
 # store
 # 1     50
@@ -201,7 +201,7 @@ df.groupby(["store"])["item"].nunique()
 # 9     50
 # 10    50
 
-# Her mağazada eşit sayıda mı satış var?
+# Are there equal numbers of sales in each store?
 df.groupby(["store", "item"]).agg({"sales": ["sum"]})
 #                sales
 #                  sum
@@ -219,7 +219,7 @@ df.groupby(["store", "item"]).agg({"sales": ["sum"]})
 #       50    135192.0
 # [500 rows x 1 columns]
 
-# Mağaza-item kırılımında satış istatistikleri
+# Sales statistics in store-item breakdown
 df.groupby(["store", "item"]).agg({"sales": ["sum", "mean", "median", "std"]})
 #                sales
 #                  sum       mean median        std
@@ -241,17 +241,17 @@ df.groupby(["store", "item"]).agg({"sales": ["sum", "mean", "median", "std"]})
 # Feature Engineering #
 #######################
 
-# gün
-# hafta
-# yıl
-# hafta içi
-# hafta sonu
-# özel günler
-# haftanın kaçıncı günü
-# ayın kaçıncı günü
-# yılın kaçıncı haftası
-# yılın kaçıncı ayı
-# yılın kaçıncı günü
+# day
+# week
+# year
+# weekdays
+# weekend
+# special days
+# what day of the week
+# which day of the month
+# week of the year
+# month of the year
+# what day of the year
 
 df.head()
 #         date  store  item  sales  id
@@ -261,7 +261,7 @@ df.head()
 # 3 2013-01-04      1     1   13.0 NaN
 # 4 2013-01-05      1     1   10.0 NaN
 
-# Zaman odaklı bir özellik yapıyoruz. Örüntü yakalama açısıyla olaylara yaklaşmak gerekir.
+# We are making a time-oriented feature. It is necessary to approach the events with a pattern capture angle.
 def create_date_features(df):
     df['month'] = df.date.dt.month
     df['day_of_month'] = df.date.dt.day
@@ -301,14 +301,16 @@ df.groupby(["store", "item", "month"]).agg({"sales": ["sum", "mean", "median", "
 #            11     11549.0  76.993333   77.0  16.253651
 #            12      8724.0  56.283871   56.0  11.782529
 # [6000 rows x 4 columns]
-# Aylara göre hangi mağazanın ne kadar satış yaptığı bilgisine erişmiş olduk.
+# We have accessed the information about how much sales each store has made by month.
 
 ################
 # Random Noise #
 ################
-# Veri setinin boyutu kadar bir normal dağılımlı bir gürültü seti oluşturuyoruz. Bu veri setinin boyutu kadar
-# oluşturduğumuz rasgele değerlere oluşturacak olduğumuz yeni özelliklerin üzerine ekliyoruz. Yani rasgele
-# gürültü oluşturuyoruz. Veriye gürültü eklemek modelin aşırı öğrenmesini engelliyor.
+
+# We create a normally distributed noise set equal to the size of the data set. 
+# We add the new features we will create to the random values we have created as much as the size of this data set. 
+# So we generate random noise. Adding noise to the data prevents the model from over-learning.
+
 def random_noise(dataframe):
     return np.random.normal(scale=1.6, size=(len(dataframe),))
 
@@ -316,9 +318,9 @@ def random_noise(dataframe):
 # Lag/Shifted Features #
 ########################
 
-# Geçmiş dönem satış sayılarına ilişkin özellikler üretiyoruz.
+# We produce features related to past sales numbers.
 
-# Burada veri setini mağazaya, item'e ve tarihe göre sıralıyoruz.
+# Here we sort the dataset by store, item and date.
 df.sort_values(by=['store', 'item', 'date'], axis=0, inplace=True)
 
 df["sales"].head(10)
@@ -379,19 +381,19 @@ df.groupby(["store", "item"])["sales"].transform(lambda x: x.shift(1))
 # 44998     NaN
 # 44999     NaN
 # Name: sales, Length: 958000, dtype: float64
-# Bütün veri setine 1 gecikme uygulamış olduk.
+# We have applied a delay of 1 to the whole dataset.
 
 def lag_features(dataframe, lags):
     for lag in lags:
         dataframe['sales_lag_' + str(lag)] = dataframe.groupby(["store", "item"])['sales'].transform(
             lambda x: x.shift(lag)) + random_noise(dataframe)
     return dataframe
-# Bu fonksiyonda dataframe'i verip istediğimiz gecikmeleri belirteceğiz. 15, 30, 90 günlük gecikmeleri belirtip
-# bu gecikmeler için yeni özellikler türetip bu gecikmelerin içerisinde gezeceğiz ve üstüne gürültü ekleyerek
-# veri setine uygulayacak.
+# In this function, we will give the dataframe and specify the delays we want. 
+# We will specify 15, 30, 90 day delays, derive new features for these delays, 
+# navigate through these delays and apply it to the dataset by adding noise to it.
 
 df = lag_features(df, [91, 98, 105, 112, 119, 126, 182, 364, 546, 728])
-# 3 aylık periyota denk gelecek olan mevsimselliği ilgili periyot ve katları olacak şekilde seçtik.
+# We have chosen the seasonality that will coincide with the 3-month period, with the relevant period and its multiples.
 
 df.head()
 #         date  store  item  sales  id  month  day_of_month  day_of_year  week_of_year  day_of_week  year  is_wknd  is_month_start  is_month_end  sales_lag_91  sales_lag_98  sales_lag_105  sales_lag_112  sales_lag_119  sales_lag_126  sales_lag_182  sales_lag_364  sales_lag_546  sales_lag_728
@@ -405,7 +407,7 @@ df.head()
 # Rolling Mean Features #
 #########################
 
-# Hareketli ortalamalar trendi gösterir, geçmiş bilgiyi taşırlar.
+# Moving averages show the trend, they carry historical information.
 
 df["sales"].head(10)
 # 0    13.0
@@ -437,7 +439,7 @@ pd.DataFrame({"sales": df["sales"].values[0:10],
 # 7    9.0    9.5  10.333333   10.8
 # 8   12.0   10.5  10.333333   10.6
 # 9    9.0   10.5  10.000000   10.4
-# Gecikmelerin ortalamasıdır.
+# is the average of the delays.
 
 pd.DataFrame({"sales": df["sales"].values[0:10],
               "roll2": df["sales"].shift(1).rolling(window=2).mean().values[0:10],
@@ -455,7 +457,7 @@ pd.DataFrame({"sales": df["sales"].values[0:10],
 # 8   12.0    9.5  10.333333   10.8
 # 9    9.0   10.5  10.333333   10.6
 
-# shitf uygulayarak geçmiş trendi yakalamaya çalışırken gözlem birimini almayıp ondan öncekini alarak uyguluyoruz.
+# While trying to catch the past trend by applying "shift", we do not take the observation unit but take the previous one.
 
 def roll_mean_features(dataframe, windows):
     for window in windows:
@@ -465,9 +467,9 @@ def roll_mean_features(dataframe, windows):
             dataframe)
     return dataframe
 
-# Üretilen özellikleri veri setinin içerisine yerleştirmek üzere yazılmış bir fonksiyondur.
-# store, item kırılımında sales değişkeninin 1 günlük shift'ini alıp ön tanımlı olarak girecek olduğumuz window'ların
-# her birisi için hesaplama işlemini gerçekleştiriyoruz.
+# It is a function written to place the generated features into the data set.
+# "store", we take the 1-day shift of the sales variable in the item breakdown, 
+# and perform the calculation for each of the windows we will enter as default.
 
 df = roll_mean_features(df, [365, 546])
 
@@ -482,8 +484,10 @@ df.head()
 ########################################
 # Exponentially Weighted Mean Features #
 ########################################
-# alpha değerleri burada ağırlıklı ortalamadır. 0.99 değeri verdiğimizde yakınındaki değerlere ağrılık verecek,
-# 0.1 olduğunda ise uzağındaki değerlere ağırlık verecektir. Gecikme sayısını 1 verip buna göre üssel ortalamalarını aldık.
+
+# The "alpha" values are the weighted average here. When we give the value 0.99, 
+# it will give weight to the values close to it, and when it is 0.1, it will give weight to the values far away. 
+# We gave the number of lags 1 and took the exponential average accordingly.
 pd.DataFrame({"sales": df["sales"].values[0:10],
               "roll2": df["sales"].shift(1).rolling(window=2).mean().values[0:10],
               "ewm099": df["sales"].shift(1).ewm(alpha=0.99).mean().values[0:10],
@@ -598,15 +602,15 @@ df.head()
 # Custom Cost Function #
 ########################
 
-# LightGBM'i optimize ederken iterasyonlarda bakacak olduğumuz şey loss fonksiyondu.
+# When optimizing LightGBM, what we were going to look at in the iterations was the loss function.
 # MSE: Mean Squared Error
 # RMSE: Root Mena Squared Error
 # MAE: Mean Absolute Error
 # MAPE: Mean Absolute Percentage Error
 # SMAPE: Symmetric Mean Absolute Percentage Error (Adjusted MAPE)
 
-# Gerçek değerlerle, tahmin edilen değerleri kıyaslar, sonrasında bunların mutlak değerini alır ve bunları
-# yüzdelik forma çevirir.
+# Compares the estimated values with the actual values, then takes their absolute value and converts them to percentage form.
+
 def smape(preds, target):
     n = len(preds)
     masked_arr = ~((preds == 0) & (target == 0))
@@ -616,8 +620,9 @@ def smape(preds, target):
     smape_val = (200 * np.sum(num / denom)) / n
     return smape_val
 
-# Daha öncesinde logaritmik bir dönüşüm yapmıştık. Bu logaritmik dönüşümü geri alacak şekilde MAPE fonksiyonuna
-# bunu uygulayacağız. LightGBM'in anlayabileceği bir şekilde optimize ediyoruz.
+# We have done a logarithmic transformation before. 
+# We'll apply this to the MAPE function to undo this logarithmic transformation. 
+# We optimize in a way that LightGBM can understand.
 def lgbm_smape(preds, train_data):
     labels = train_data.get_label()
     smape_val = smape(np.expm1(preds), np.expm1(labels))
@@ -627,10 +632,10 @@ def lgbm_smape(preds, train_data):
 # Time-Based Validation Sets #
 ##############################
 
-# Beklenen test tesi 2018'in ilk 3 ayı elimizde de 2017'nin son ayına kadarlık bir eğitim veri setimiz var.
-# 2017'nin son üç ayı bizden beklenen örüntüyle örtüşür mü örtüşmez mi bilemiyoruz dolayısıyla aynı örüntüyü
-# yakalayabileceğimiz başka bir noktaya gitmek istiyoruz. Buradaki tercihimiz doğal olarak 2017'nin ilk 3 ayını
-# validasyon seti olarak ayırıyoruz.
+# Expected test test We have a training dataset for the first 3 months of 2018 and until the last month of 2017.
+# We don't know if the last three months of 2017 will match the pattern expected from us, 
+# so we want to go to another point where we can catch the same pattern. 
+# Naturally, our preference here is to allocate the first 3 months of 2017 as the validation set.
 
 test.head()
 #    id       date  store  item
@@ -654,14 +659,14 @@ train["date"].min(), train["date"].max()
 test["date"].min(), test["date"].max()
 # (Timestamp('2018-01-01 00:00:00'), Timestamp('2018-03-31 00:00:00'))
 
-# 2017'nin başına kadar (2016'nın sonuna kadar) train seti.
+# Train set until the beginning of 2017 (until the end of 2016).
 train = df.loc[(df["date"] < "2017-01-01"), :]
 
-# 2017'nin ilk 3 ayını validasyon seti yapıyoruz.
+# We are doing validation set for the first 3 months of 2017.
 val = df.loc[(df["date"] >= "2017-01-01") & (df["date"] < "2017-04-01"), :]
 
-# Bağımsız değişkenlerimizi cols adında bir değişkenin içine koyuyoruz. "date", "id", "sales", "year" değişkenleri
-# ile bir işimiz yok.
+# Put the arguments in a variable called cols. We have nothing to do with the variables "date", "id", "sales", "year".
+
 cols = [col for col in train.columns if col not in ['date', 'id', "sales", "year"]]
 
 Y_train = train["sales"]
@@ -674,17 +679,17 @@ X_val = val[cols]
 # LightGBM Model #
 ##################
 
-# "num_leaves" yaprak sayısını belirtir.
-# "learning_rate" öğrenme oranıdır, shrinkage_rate, eta
-# "feature_fraction" her iterasyonda gözlemlerin belirli bir oranda mı yoksa hepsini mi göz önünde bulunduralım parametresidir.
-#  rf'nin random subspace özelliği. her iterasyonda rastgele göz önünde bulundurulacak değişken sayısı.
-# "max_depth" maximum derinlik.
-# "verbose" kaç adımda bir raporlama yapması gerektiğini belirtiyoruz.
-# "num_boost_round" n estimators demektir, number of boosting iterations. En az 10000-15000 civarı yapmak lazım.
-# "early_stopping_round" validasyon setindeki metrik belirli bir early_stopping_rounds'da ilerlemiyorsa yani
-# hata düşmüyorsa modellemeyi durdur.
-# "nthread" işlemcilerin kullanımı ile alakalı. -1 dediğimizde işlemcilerin hepsini kullanır.
-# Hem train süresini kısaltır hem de overfit'e engel olur.
+# "num_leaves" specifies the number of leaves.
+# "learning_rate" is the learning rate, shrinkage_rate, eta
+# "feature_fraction" parameter is whether we should consider a certain percentage or all of the observations in each iteration.
+# rf's random subspace feature. the number of variables to be considered randomly at each iteration.
+# "max_depth" is the maximum depth.
+# We specify how many steps the "verbose" should report in.
+# "num_boost_round" means n estimators, number of boosting iterations. It should be around 10000-15000 at least.
+# If the metric in the validation set "early_stopping_round" is not progressing at a certain early_stopping_rounds
+# stop modeling if no errors are dropped.
+# Related to the use of "nthread" processors. When we say -1, it uses all of the processors.
+# It both shortens the duration of the train and prevents overfit.
 # LightGBM parameters
 
 # metric mae: l1, absolute loss, mean_absolute_error, regression_l1
@@ -703,14 +708,13 @@ lgb_params = {'metric': {'mae'},
               'nthread': -1}
 
 lgbtrain = lgb.Dataset(data=X_train, label=Y_train, feature_name=cols)
-# Data bölümüne bağımsız değişkenleri label bölümüne bağımlı değişkeni, feature_name argümanına da bağımsız değişkenlerin
-# isimlerini giriyoruz.
+# We enter the independent variables in the data section, the dependent variable in the label section, 
+# and the names of the independent variables in the feature_name argument.
 
 lgbval = lgb.Dataset(data=X_val, label=Y_val, reference=lgbtrain, feature_name=cols)
-# Validasyon seti
+# Validation set
 
-
-# feval argümanı custom cost function'ı belirtir. Mean Absolute Error değerini yüzdelik bir hata oranı olarak göstermesini belirttik.
+# The "feval" argument specifies the custom cost function. We have specified that it displays the Mean Absolute Error value as a percent error rate.
 model = lgb.train(lgb_params, lgbtrain,
                   valid_sets=[lgbtrain, lgbval],
                   num_boost_round=lgb_params["num_boost_round"],
@@ -732,13 +736,13 @@ model = lgb.train(lgb_params, lgbtrain,
 # Did not meet early stopping. Best iteration is:
 # [1000]	training's l1: 0.130023	training's SMAPE: 13.3466	valid_1's l1: 0.134515	valid_1's SMAPE: 13.8224
 
-# Note : LightGBM'in en önemli hiperparametre optimizasyonu num_boost_round'dur.
+# Note : LightGBM's most important hyperparameter optimization is "num_boost_round".
 
 y_pred_val = model.predict(X_val, num_iteration=model.best_iteration)
 
-# Daha öncesinde modele sokulan değerlerin logaritması alınarak modele sokulmuştu. Şimdi bunların tersini alıyoruz.
+# It was inserted into the model by taking the logarithm of the values that were previously inserted into the model. Now we get the reverse of these.
 smape(np.expm1(y_pred_val), np.expm1(Y_val))
-# 13.822393276127935 hatamız var.
+We have error #13.822393276127935.
 
 ######################
 # Feature Importance #
@@ -760,7 +764,7 @@ def plot_lgb_importances(model, plot=False, num=10):
     else:
         print(feat_imp.head(num))
 
-# 30 değişkeni göstermek için num parametresine 30 değerini girdik.
+# We entered the value 30 in the num parameter to show the 30 variable.
 plot_lgb_importances(model, num=30)
 #                          feature  split       gain
 # 17           sales_roll_mean_546    920  54.288368
@@ -794,8 +798,8 @@ plot_lgb_importances(model, num=30)
 # 126                day_of_week_3    112   0.061916
 # 28     sales_ewm_alpha_09_lag_98      5   0.046419
 
-# split argümanı değişkenin ağaç yöntemlerinde kaç bölme işleminde kullanıldığını göstermektedir. gain argümanı ise
-# değişkenin modeli tahmin etmesinde ne kadar kazanç sağladığını göstermektedir.
+# The "split" argument shows how many splits the variable is used in tree methods. 
+# The "gain" argument shows how much the variable gains in predicting the model.
 
 plot_lgb_importances(model, num=30, plot=True)
 
@@ -806,7 +810,7 @@ plt.show()
 # Final Model #
 ###############
 
-# NA olmayan sales değerleri train setine karşılık gelir.
+# Non-NA sales values correspond to the train set.
 train = df.loc[~df.sales.isna()]
 
 Y_train = train["sales"]
@@ -816,7 +820,7 @@ test = df.loc[df.sales.isna()]
 X_test = test[cols]
 
 # dataleakage
-# tüm veride age 0-1 minmax dönüşümü
+# age 0-1 minmax conversion in all data
 # train - test
 
 lgb_params = {'metric': {'mae'},
